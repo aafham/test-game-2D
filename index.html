@@ -12,42 +12,94 @@
     <section class="game-shell">
       <header class="hud" id="hud" aria-live="polite">
         <div class="hud-grid">
-          <p>Score: <span id="scoreValue">0</span></p>
-          <p>High: <span id="highScoreValue">0</span></p>
-          <p>Level: <span id="levelValue">1</span></p>
-          <p>Speed: <span id="speedValue">1.00x</span></p>
-          <p>Combo: <span id="comboValue">x1</span></p>
-          <p>Shield: <span id="shieldValue">0</span></p>
-          <p>Coins: <span id="coinValue">0</span></p>
-          <p>Boss: <span id="bossValue">-</span></p>
+          <div class="stat">
+            <span class="stat-k">Score</span>
+            <span class="stat-v" id="scoreValue">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">High</span>
+            <span class="stat-v" id="highScoreValue">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Level</span>
+            <span class="stat-v" id="levelValue">1</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Speed</span>
+            <span class="stat-v" id="speedValue">1.00x</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Combo</span>
+            <span class="stat-v" id="comboValue">x1</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Shield</span>
+            <span class="stat-v" id="shieldValue">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Coins</span>
+            <span class="stat-v" id="coinValue">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-k">Boss</span>
+            <span class="stat-v" id="bossValue">-</span>
+          </div>
         </div>
         <div class="hud-actions">
-          <button id="abilityBtn" class="icon-btn" type="button" aria-label="Use ability">AB</button>
+          <button id="abilityBtn" class="icon-btn icon-btn-accent" type="button" aria-label="Use ability">Dash</button>
           <span id="abilityValue" class="ability-state">Ready</span>
+          <span class="ability-meter" aria-hidden="true"><span id="abilityMeterFill"></span></span>
           <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause game">||</button>
         </div>
       </header>
 
       <div class="canvas-wrap" id="canvasWrap">
         <canvas id="gameCanvas" width="360" height="640" aria-label="DODGE RUN game area"></canvas>
+        <div class="touch-zone touch-zone-left" id="touchZoneLeft" aria-hidden="true"></div>
+        <div class="touch-zone touch-zone-right" id="touchZoneRight" aria-hidden="true"></div>
+        <button id="dashFab" class="dash-fab" type="button" aria-label="Dash ability">Dash</button>
 
         <section class="overlay active" id="startScreen" role="dialog" aria-modal="true">
+          <p class="brand-eyebrow">Arcade Survival</p>
           <h1>DODGE RUN</h1>
-          <p class="subtitle">Arrow/A-D to move | Space pause | F/AB dash+slowmo | Tap left/right on mobile</p>
+          <p class="subtitle">Move fast, survive longer, stack combo multiplier.</p>
+          <p class="subtitle subtitle-soft">[A/D or Arrow] Move | [Space] Pause | [F] Dash | Tap left/right on mobile</p>
           <div class="button-row">
-            <button id="startBtn" class="primary-btn" type="button">Start</button>
-            <button id="skinBtn" class="ghost-btn" type="button">Skin: Neo Mint</button>
+            <button id="startBtn" class="primary-btn primary-btn-big" type="button">Start Run</button>
+            <button id="skinBtn" class="ghost-btn ghost-btn-compact" type="button">Skin: Neo Mint</button>
+            <button id="settingsBtn" class="ghost-btn ghost-btn-compact" type="button">Settings</button>
           </div>
-          <div class="panel">
-            <p class="panel-title">Daily Challenge</p>
+          <details class="panel collapsible" id="challengePanel" open>
+            <summary class="panel-title">Daily Challenge</summary>
             <p id="challengeText">-</p>
             <p id="challengeStatus" class="hint">-</p>
-          </div>
-          <div class="panel">
-            <p class="panel-title">Leaderboard</p>
+            <p id="challengeReset" class="hint hint-subtle">-</p>
+          </details>
+          <details class="panel collapsible" id="leaderboardPanel">
+            <summary class="panel-title">Leaderboard</summary>
             <ol id="leaderboardList" class="leaderboard"></ol>
-          </div>
+            <button id="leaderboardToggleBtn" class="ghost-btn ghost-btn-compact" type="button">View All</button>
+          </details>
           <p class="hint">Press <strong>R</strong> to reset High Score | <strong>L</strong> reset local leaderboard</p>
+        </section>
+
+        <section class="overlay" id="settingsScreen" role="dialog" aria-modal="true">
+          <h2>Settings</h2>
+          <div class="panel settings-panel">
+            <label class="setting-row">
+              <span>Reduced Motion</span>
+              <input id="settingReducedMotion" type="checkbox" />
+            </label>
+            <label class="setting-row">
+              <span>High Contrast</span>
+              <input id="settingHighContrast" type="checkbox" />
+            </label>
+            <label class="setting-row">
+              <span>Mute Audio</span>
+              <input id="settingMute" type="checkbox" />
+            </label>
+          </div>
+          <button id="settingsBackBtn" class="primary-btn" type="button">Back</button>
         </section>
 
         <section class="overlay" id="pauseScreen" role="dialog" aria-modal="true">
@@ -58,12 +110,14 @@
 
         <section class="overlay" id="gameOverScreen" role="dialog" aria-modal="true">
           <h2>Game Over</h2>
+          <p id="newHighBadge" class="new-high-badge hidden">NEW HIGH SCORE</p>
           <p>Score: <span id="finalScore">0</span></p>
           <p>High Score: <span id="finalHighScore">0</span></p>
           <p>Coins Collected: <span id="finalCoins">0</span></p>
           <p id="rewardInfo" class="hint"></p>
           <div class="button-row">
             <button id="restartBtn" class="primary-btn" type="button">Restart</button>
+            <button id="homeBtnGameOver" class="ghost-btn" type="button">Back Home</button>
             <button id="submitBtn" class="ghost-btn" type="button">Submit Score</button>
           </div>
         </section>

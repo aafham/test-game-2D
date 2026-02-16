@@ -17,7 +17,8 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - `Left / A`: Gerak kiri
 - `Right / D`: Gerak kanan
 - `Space`: Pause / Resume
-- `F` atau butang `AB`: Dash + Slow-motion ability (cooldown)
+- `F` atau butang `Dash`: Dash + Slow-motion ability (cooldown)
+- `Esc`: Keluar dari Settings ke Home
 - Start Screen:
   - `C`: Tukar skin
   - `R`: Reset high score
@@ -27,7 +28,8 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - Tap kiri canvas: Move left
 - Tap kanan canvas: Move right
 - Swipe kiri/kanan: Ubah arah dengan cepat
-- Butang `AB`: Activate ability
+- Butang `Dash`: Activate ability
+- Dash FAB di bahagian bawah kanan semasa in-game
 
 ## Core Features
 - Delta-time physics (`requestAnimationFrame` + time-based movement)
@@ -37,6 +39,42 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - Spawn anti-overlap (min gap time + min x gap)
 - Local high score (`localStorage`)
 - Pause betul-betul berhenti update physics/spawn
+
+## UI/UX Improvements
+- HUD metric cards lebih jelas (label kecil + nilai besar).
+- Semantic highlight pada stat penting (`Combo`, `Shield`, `Boss`) + glow state semasa aktif.
+- Cooldown meter untuk ability Dash (bar progress + text timer).
+- Micro-animation pada value HUD bila nilai penting berubah (score, combo, shield, coins, dll).
+- Toast feedback untuk event penting:
+  - dash active
+  - combo streak
+  - shield block/pickup
+  - magnet pickup
+  - boss wave
+  - challenge complete
+  - score submit
+  - reset action
+- Toast anti-spam:
+  - throttle mesej sama
+  - had bilangan toast serentak
+- Focus ring keyboard (`:focus-visible`) pada butang.
+- `prefers-reduced-motion` support:
+  - transition/animation dikurangkan
+  - shake effect disable
+  - particle count dikurangkan
+- Touch-zone visual feedback pada mobile ketika tap kiri/kanan.
+- Start Screen kini lebih compact:
+  - CTA Start lebih dominan
+  - panel `Daily Challenge` dan `Leaderboard` boleh collapse/expand
+  - leaderboard default Top 3 dengan toggle `View All`
+- Daily challenge status diperjelas:
+  - `Completed Today` bila dah claim
+  - countdown reset harian (`Resets in Xh Ym`)
+- Settings panel tambahan:
+  - Reduced Motion
+  - High Contrast
+  - Mute Audio
+  - semua setting disimpan ke `localStorage`
 
 ## Upgrade Features (Implemented)
 1. **Shield Power-up**

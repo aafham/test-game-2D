@@ -6,7 +6,10 @@
     highScore: "dodge_run_high_score",
     skin: "dodge_run_skin_index",
     leaderboard: "dodge_run_local_leaderboard",
-    challengeDoneDate: "dodge_run_challenge_done_date"
+    challengeDoneDate: "dodge_run_challenge_done_date",
+    reducedMotion: "dodge_run_reduced_motion",
+    highContrast: "dodge_run_high_contrast",
+    mute: "dodge_run_mute"
   };
 
   const WORLD = { width: 360, height: 640 };
@@ -21,7 +24,8 @@
     powerupMinGap: 8,
     powerupMaxGap: 14,
     comboWindow: 2.2,
-    bossEveryLevels: 5
+    bossEveryLevels: 5,
+    abilityCooldownMax: 7.5
   };
 
   const SKINS = [
@@ -37,6 +41,8 @@
   ];
 
   const LEADERBOARD_ENDPOINT = String(window.DODGE_LEADERBOARD_ENDPOINT || "").trim();
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let prefersReducedMotion = reducedMotionQuery.matches;
 
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
@@ -45,6 +51,7 @@
   const hud = document.getElementById("hud");
 
   const startScreen = document.getElementById("startScreen");
+  const settingsScreen = document.getElementById("settingsScreen");
   const pauseScreen = document.getElementById("pauseScreen");
   const gameOverScreen = document.getElementById("gameOverScreen");
 
@@ -57,6 +64,7 @@
   const coinValue = document.getElementById("coinValue");
   const bossValue = document.getElementById("bossValue");
   const abilityValue = document.getElementById("abilityValue");
+  const abilityMeterFill = document.getElementById("abilityMeterFill");
 
   const finalScore = document.getElementById("finalScore");
   const finalHighScore = document.getElementById("finalHighScore");
@@ -65,15 +73,41 @@
 
   const challengeText = document.getElementById("challengeText");
   const challengeStatus = document.getElementById("challengeStatus");
+  const challengeReset = document.getElementById("challengeReset");
   const leaderboardList = document.getElementById("leaderboardList");
+  const leaderboardPanel = document.getElementById("leaderboardPanel");
+  const leaderboardToggleBtn = document.getElementById("leaderboardToggleBtn");
 
   const startBtn = document.getElementById("startBtn");
+  const settingsBtn = document.getElementById("settingsBtn");
+  const settingsBackBtn = document.getElementById("settingsBackBtn");
   const skinBtn = document.getElementById("skinBtn");
   const pauseBtn = document.getElementById("pauseBtn");
   const abilityBtn = document.getElementById("abilityBtn");
+  const dashFab = document.getElementById("dashFab");
   const resumeBtn = document.getElementById("resumeBtn");
+  const homeBtnGameOver = document.getElementById("homeBtnGameOver");
   const restartBtn = document.getElementById("restartBtn");
   const submitBtn = document.getElementById("submitBtn");
+  const newHighBadge = document.getElementById("newHighBadge");
+  const touchZoneLeft = document.getElementById("touchZoneLeft");
+  const touchZoneRight = document.getElementById("touchZoneRight");
+  const settingReducedMotion = document.getElementById("settingReducedMotion");
+  const settingHighContrast = document.getElementById("settingHighContrast");
+  const settingMute = document.getElementById("settingMute");
+  const hudPulseState = {};
+  const hudPrev = {
+    score: 0,
+    high: 0,
+    level: 1,
+    speed: "1.00x",
+    combo: "x1",
+    shield: 0,
+    coins: 0,
+    boss: "-"
+  };
+  let toastStack = null;
+  const toastHistory = {};
 
   const state = {
     mode: "start",
@@ -105,12 +139,19 @@
     challenge: buildDailyChallenge(),
     skinIndex: clamp(Number(localStorage.getItem(STORAGE.skin) || 0), 0, SKINS.length - 1),
     leaderboard: [],
+    leaderboardExpanded: false,
+    settings: {
+      reducedMotion: localStorage.getItem(STORAGE.reducedMotion) === "1",
+      highContrast: localStorage.getItem(STORAGE.highContrast) === "1",
+      mute: localStorage.getItem(STORAGE.mute) === "1"
+    },
     shakeTime: 0,
     shakeMag: 0,
     input: { left: false, right: false, touchAxis: 0, swipeStartX: null, pointerDown: false },
     lastRunBonusText: "",
     frameHandle: null,
-    lastTs: 0
+    lastTs: 0,
+    lastClockSecond: -1
   };
 
   const audio = makeAudio();
@@ -134,6 +175,7 @@
     }
 
     function beep(freq, duration = 0.08, type = "square", volume = 0.03) {
+      if (state.settings.mute) return;
       if (!enabled || !actx) return;
       if (actx.state === "suspended") {
         actx.resume().catch(() => {});
@@ -172,27 +214,31 @@
   }
 
   function showOverlay(el) {
-    [startScreen, pauseScreen, gameOverScreen].forEach((node) => node.classList.toggle("active", node === el));
+    [startScreen, settingsScreen, pauseScreen, gameOverScreen].forEach((node) => node.classList.toggle("active", node === el));
   }
 
   function setMode(mode) {
     state.mode = mode;
     if (mode === "start") showOverlay(startScreen);
+    if (mode === "settings") showOverlay(settingsScreen);
     if (mode === "paused") showOverlay(pauseScreen);
     if (mode === "gameover") showOverlay(gameOverScreen);
     if (mode === "playing") showOverlay(null);
+    dashFab.classList.toggle("hidden", mode !== "playing");
   }
 
   function resetHighScore() {
     state.highScore = 0;
     localStorage.removeItem(STORAGE.highScore);
     updateHud();
+    showToast("High score reset", "info");
   }
 
   function resetLeaderboard() {
     state.leaderboard = [];
     localStorage.removeItem(STORAGE.leaderboard);
     renderLeaderboard();
+    showToast("Leaderboard reset", "info");
   }
 
   function getSkin() { return SKINS[state.skinIndex] || SKINS[0]; }
@@ -204,21 +250,157 @@
   }
 
   function updateHud() {
-    scoreValue.textContent = Math.floor(state.score).toString();
-    highScoreValue.textContent = state.highScore.toString();
-    levelValue.textContent = state.level.toString();
-    speedValue.textContent = `${state.speedMul.toFixed(2)}x`;
-    comboValue.textContent = `x${state.combo}`;
-    shieldValue.textContent = String(state.shieldCharges);
-    coinValue.textContent = String(state.coins);
-    bossValue.textContent = state.boss.active ? `Wave ${state.boss.level}` : "-";
+    const scoreNow = Math.floor(state.score);
+    const highNow = state.highScore;
+    const levelNow = state.level;
+    const speedNow = `${state.speedMul.toFixed(2)}x`;
+    const comboNow = `x${state.combo}`;
+    const shieldNow = state.shieldCharges;
+    const coinsNow = state.coins;
+    const bossNow = state.boss.active ? `Wave ${state.boss.level}` : "-";
+
+    scoreValue.textContent = String(scoreNow);
+    highScoreValue.textContent = String(highNow);
+    levelValue.textContent = String(levelNow);
+    speedValue.textContent = speedNow;
+    comboValue.textContent = comboNow;
+    shieldValue.textContent = String(shieldNow);
+    coinValue.textContent = String(coinsNow);
+    bossValue.textContent = bossNow;
     abilityValue.textContent = state.abilityCooldown <= 0 ? (state.abilityActiveTime > 0 ? "Active" : "Ready") : `${state.abilityCooldown.toFixed(1)}s`;
+    const meter = state.abilityCooldown <= 0 ? 100 : clamp(((TUNE.abilityCooldownMax - state.abilityCooldown) / TUNE.abilityCooldownMax) * 100, 0, 100);
+    abilityMeterFill.style.width = `${meter}%`;
+    dashFab.textContent = state.abilityCooldown <= 0 ? "Dash" : `${state.abilityCooldown.toFixed(1)}s`;
+    dashFab.disabled = state.mode !== "playing" || state.abilityCooldown > 0;
+
+    comboValue.classList.toggle("combo-hot", state.combo >= 3);
+    shieldValue.classList.toggle("shield-hot", state.shieldCharges > 0);
+    bossValue.classList.toggle("boss-hot", state.boss.active);
+
+    // Keep score pulse readable by thresholding small per-frame changes.
+    if (scoreNow >= hudPrev.score + 4) pulseHudValue(scoreValue, "score");
+    if (highNow !== hudPrev.high) pulseHudValue(highScoreValue, "high");
+    if (levelNow !== hudPrev.level) pulseHudValue(levelValue, "level");
+    if (comboNow !== hudPrev.combo) pulseHudValue(comboValue, "combo");
+    if (shieldNow !== hudPrev.shield) pulseHudValue(shieldValue, "shield");
+    if (coinsNow !== hudPrev.coins) pulseHudValue(coinValue, "coins");
+    if (bossNow !== hudPrev.boss) pulseHudValue(bossValue, "boss");
+
+    hudPrev.score = scoreNow;
+    hudPrev.high = highNow;
+    hudPrev.level = levelNow;
+    hudPrev.speed = speedNow;
+    hudPrev.combo = comboNow;
+    hudPrev.shield = shieldNow;
+    hudPrev.coins = coinsNow;
+    hudPrev.boss = bossNow;
+  }
+
+  function pulseHudValue(el, key) {
+    if (prefersReducedMotion) return;
+    const now = performance.now();
+    if (now - (hudPulseState[key] || 0) < 120) return;
+    hudPulseState[key] = now;
+    el.classList.remove("hud-pop");
+    void el.offsetWidth;
+    el.classList.add("hud-pop");
+  }
+
+  function ensureToastStack() {
+    if (toastStack) return;
+    toastStack = document.createElement("div");
+    toastStack.className = "toast-stack";
+    toastStack.setAttribute("aria-live", "polite");
+    document.body.appendChild(toastStack);
+  }
+
+  function showToast(message, tone = "info") {
+    ensureToastStack();
+    const key = `${tone}:${message}`;
+    const now = performance.now();
+    if (now - (toastHistory[key] || 0) < 550) return;
+    toastHistory[key] = now;
+
+    while (toastStack.childElementCount >= 4) {
+      toastStack.firstElementChild.remove();
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${tone}`;
+    toast.textContent = message;
+    toastStack.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    window.setTimeout(() => {
+      toast.classList.remove("show");
+      window.setTimeout(() => toast.remove(), prefersReducedMotion ? 0 : 220);
+    }, 1700);
+  }
+
+  function haptic(ms = 16) {
+    if (typeof navigator.vibrate === "function") {
+      navigator.vibrate(ms);
+    }
+  }
+
+  function bindReducedMotionPreference() {
+    const apply = () => {
+      prefersReducedMotion = state.settings.reducedMotion || reducedMotionQuery.matches;
+    };
+    apply();
+    if (typeof reducedMotionQuery.addEventListener === "function") {
+      reducedMotionQuery.addEventListener("change", apply);
+    } else if (typeof reducedMotionQuery.addListener === "function") {
+      reducedMotionQuery.addListener(apply);
+    }
+  }
+
+  function saveSettings() {
+    localStorage.setItem(STORAGE.reducedMotion, state.settings.reducedMotion ? "1" : "0");
+    localStorage.setItem(STORAGE.highContrast, state.settings.highContrast ? "1" : "0");
+    localStorage.setItem(STORAGE.mute, state.settings.mute ? "1" : "0");
+  }
+
+  function applyVisualSettings() {
+    document.body.classList.toggle("high-contrast", state.settings.highContrast);
+    prefersReducedMotion = state.settings.reducedMotion || reducedMotionQuery.matches;
+  }
+
+  function syncSettingsInputs() {
+    settingReducedMotion.checked = state.settings.reducedMotion;
+    settingHighContrast.checked = state.settings.highContrast;
+    settingMute.checked = state.settings.mute;
+  }
+
+  function openSettings() {
+    syncSettingsInputs();
+    setMode("settings");
+  }
+
+  function closeSettings() {
+    setMode("start");
   }
 
   function updateChallengeUI() {
     const c = state.challenge;
-    challengeText.textContent = `${c.text} (${Math.floor(c.progress)}/${c.target})`;
-    challengeStatus.textContent = c.rewardGiven ? `Done today (+${c.rewardScore} score, +${c.rewardCoins} coins)` : "Incomplete";
+    if (c.rewardGiven) {
+      challengeText.textContent = `${c.text}`;
+      challengeStatus.textContent = `Completed Today (+${c.rewardScore} score, +${c.rewardCoins} coins)`;
+    } else {
+      challengeText.textContent = `${c.text} (${Math.floor(c.progress)}/${c.target})`;
+      challengeStatus.textContent = "In progress";
+    }
+    challengeReset.textContent = `Resets in ${timeUntilNextDayText()}`;
+  }
+
+  function timeUntilNextDayText() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(24, 0, 0, 0);
+    const diffMs = Math.max(0, next.getTime() - now.getTime());
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return `${h}h ${m}m`;
   }
 
   function resizeCanvas() {
@@ -273,10 +455,16 @@
       const li = document.createElement("li");
       li.textContent = "No scores yet";
       leaderboardList.appendChild(li);
+      leaderboardToggleBtn.textContent = "View All";
+      leaderboardToggleBtn.disabled = true;
       return;
     }
 
-    state.leaderboard.slice(0, 5).forEach((row) => {
+    leaderboardToggleBtn.disabled = state.leaderboard.length <= 3;
+    leaderboardToggleBtn.textContent = state.leaderboardExpanded ? "Show Top 3" : "View All";
+
+    const rows = state.leaderboardExpanded ? state.leaderboard : state.leaderboard.slice(0, 3);
+    rows.forEach((row) => {
       const li = document.createElement("li");
       li.textContent = `${row.name} - ${row.score}`;
       leaderboardList.appendChild(li);
@@ -313,6 +501,7 @@
     }
 
     await refreshLeaderboard();
+    showToast("Score submitted", "success");
   }
   function updatePlayer(dt) {
     const inputAxis = (state.input.left ? -1 : 0) + (state.input.right ? 1 : 0) + state.input.touchAxis;
@@ -400,6 +589,9 @@
         state.score += 10 * state.combo;
         emitParticles(o.x + o.width * 0.5, WORLD.height - 7, "#77ffd6", 5);
         audio.beep(710 + state.combo * 35, 0.04, "square", 0.02);
+        if (state.combo >= 3) {
+          showToast(`Combo ${state.combo}x`, "accent");
+        }
       }
 
       if (o.y > WORLD.height + 130) {
@@ -413,6 +605,8 @@
           emitParticles(o.x + o.width * 0.5, o.y + o.height * 0.5, "#a7f3d0", 10);
           state.obstacles.splice(i, 1);
           audio.beep(420, 0.05, "triangle", 0.03);
+          showToast("Shield blocked hit", "success");
+          haptic(22);
           continue;
         }
 
@@ -461,10 +655,14 @@
           state.shieldCharges = Math.min(2, state.shieldCharges + 1);
           emitParticles(item.x + 7, item.y + 7, "#a7f3d0", 8);
           audio.beep(520, 0.06, "square", 0.03);
+          showToast("Shield +1", "success");
+          haptic(14);
         } else if (item.type === "magnet") {
           state.magnetTime = Math.max(state.magnetTime, 7);
           emitParticles(item.x + 7, item.y + 7, "#9fd8ff", 8);
           audio.beep(620, 0.06, "square", 0.03);
+          showToast("Magnet active", "info");
+          haptic(14);
         }
 
         state.collectibles.splice(i, 1);
@@ -571,6 +769,7 @@
 
     state.lastRunBonusText = "";
     state.challenge = buildDailyChallenge();
+    newHighBadge.classList.add("hidden");
 
     updateHud();
     updateChallengeUI();
@@ -581,6 +780,12 @@
     audio.beep(500, 0.06, "triangle", 0.02);
     resetRunState();
     setMode("playing");
+  }
+
+  function backToHome() {
+    resetRunState();
+    setMode("start");
+    showToast("Back to home", "info");
   }
 
   function pauseGame() {
@@ -600,6 +805,7 @@
     state.shakeMag = 8;
 
     const roundedScore = Math.floor(state.score);
+    const wasNewHigh = roundedScore > state.highScore;
     if (roundedScore > state.highScore) {
       state.highScore = roundedScore;
       localStorage.setItem(STORAGE.highScore, String(state.highScore));
@@ -608,8 +814,11 @@
     finalScore.textContent = String(roundedScore);
     finalHighScore.textContent = String(state.highScore);
     finalCoins.textContent = String(state.coins);
+    newHighBadge.classList.toggle("hidden", !wasNewHigh);
     rewardInfo.textContent = state.lastRunBonusText || "";
     updateHud();
+    showToast(`Run ended: ${roundedScore}`, "danger");
+    haptic(50);
 
     audio.beep(180, 0.15, "sawtooth", 0.04);
     setTimeout(() => audio.beep(120, 0.22, "sawtooth", 0.04), 60);
@@ -627,10 +836,11 @@
 
     state.player.vx += dir * 260;
     state.abilityActiveTime = 1.8;
-    state.abilityCooldown = 7.5;
+    state.abilityCooldown = TUNE.abilityCooldownMax;
 
     audio.beep(680, 0.06, "triangle", 0.03);
     audio.beep(860, 0.05, "triangle", 0.02);
+    showToast("Dash engaged", "info");
   }
 
   function spawnObstacle(now, bossType = false) {
@@ -725,10 +935,13 @@
 
     audio.beep(220, 0.08, "sawtooth", 0.04);
     audio.beep(260, 0.08, "sawtooth", 0.04);
+    showToast("Boss wave incoming", "warn");
+    haptic(26);
   }
 
   function emitParticles(x, y, color, count = 5) {
-    for (let i = 0; i < count; i += 1) {
+    const adjustedCount = prefersReducedMotion ? Math.max(1, Math.floor(count * 0.35)) : count;
+    for (let i = 0; i < adjustedCount; i += 1) {
       state.particles.push({
         x,
         y,
@@ -762,6 +975,7 @@
       emitParticles(state.player.x + state.player.width * 0.5, state.player.y, "#ffd166", 12);
       audio.beep(820, 0.08, "triangle", 0.04);
       audio.beep(960, 0.08, "triangle", 0.03);
+      showToast("Daily challenge complete", "success");
     }
 
     updateChallengeUI();
@@ -886,7 +1100,7 @@
   function render(dt, timeMs) {
     ctx.save();
 
-    if (state.shakeTime > 0) {
+    if (!prefersReducedMotion && state.shakeTime > 0) {
       state.shakeTime = Math.max(0, state.shakeTime - dt);
       const intensity = state.shakeMag * (state.shakeTime / 0.38);
       ctx.translate(randRange(-intensity, intensity), randRange(-intensity, intensity));
@@ -908,6 +1122,13 @@
     dt = Math.min(TUNE.maxDt, dt);
 
     update(dt, ts / 1000);
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec !== state.lastClockSecond) {
+      state.lastClockSecond = nowSec;
+      if (state.mode !== "playing") {
+        updateChallengeUI();
+      }
+    }
     render(dt, ts);
 
     state.frameHandle = requestAnimationFrame(tick);
@@ -916,7 +1137,10 @@
   function setTouchFromEvent(clientX) {
     const rect = canvas.getBoundingClientRect();
     const localX = clientX - rect.left;
-    state.input.touchAxis = localX < rect.width * 0.5 ? -1 : 1;
+    const left = localX < rect.width * 0.5;
+    state.input.touchAxis = left ? -1 : 1;
+    touchZoneLeft.classList.toggle("active", left);
+    touchZoneRight.classList.toggle("active", !left);
 
     if (state.mode === "start") {
       startGame();
@@ -940,6 +1164,7 @@
       if (key === "r" && state.mode === "start") resetHighScore();
       if (key === "l" && state.mode === "start") resetLeaderboard();
       if (key === "c" && state.mode === "start") cycleSkin();
+      if (key === "escape" && state.mode === "settings") closeSettings();
     });
 
     window.addEventListener("keyup", (e) => {
@@ -963,9 +1188,19 @@
     window.addEventListener("pointerup", () => {
       state.input.pointerDown = false;
       state.input.swipeStartX = null;
+      touchZoneLeft.classList.remove("active");
+      touchZoneRight.classList.remove("active");
+    });
+    window.addEventListener("pointercancel", () => {
+      state.input.pointerDown = false;
+      state.input.swipeStartX = null;
+      touchZoneLeft.classList.remove("active");
+      touchZoneRight.classList.remove("active");
     });
 
     startBtn.addEventListener("click", startGame);
+    settingsBtn.addEventListener("click", openSettings);
+    settingsBackBtn.addEventListener("click", closeSettings);
     skinBtn.addEventListener("click", cycleSkin);
     restartBtn.addEventListener("click", startGame);
 
@@ -975,7 +1210,31 @@
     });
 
     abilityBtn.addEventListener("click", activateAbility);
+    dashFab.addEventListener("click", activateAbility);
     resumeBtn.addEventListener("click", resumeGame);
+    homeBtnGameOver.addEventListener("click", backToHome);
+    leaderboardToggleBtn.addEventListener("click", () => {
+      state.leaderboardExpanded = !state.leaderboardExpanded;
+      renderLeaderboard();
+    });
+
+    settingReducedMotion.addEventListener("change", () => {
+      state.settings.reducedMotion = settingReducedMotion.checked;
+      applyVisualSettings();
+      saveSettings();
+      showToast("Reduced motion updated", "info");
+    });
+    settingHighContrast.addEventListener("change", () => {
+      state.settings.highContrast = settingHighContrast.checked;
+      applyVisualSettings();
+      saveSettings();
+      showToast("Contrast updated", "info");
+    });
+    settingMute.addEventListener("change", () => {
+      state.settings.mute = settingMute.checked;
+      saveSettings();
+      showToast(state.settings.mute ? "Audio muted" : "Audio unmuted", "info");
+    });
 
     submitBtn.addEventListener("click", async () => {
       const name = window.prompt("Submit name (max 12 chars):", "YOU");
@@ -989,6 +1248,10 @@
   async function bootstrap() {
     skinBtn.textContent = `Skin: ${getSkin().name}`;
 
+    bindReducedMotionPreference();
+    ensureToastStack();
+    applyVisualSettings();
+    syncSettingsInputs();
     registerInput();
     resizeCanvas();
     updateHud();

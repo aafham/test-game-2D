@@ -632,20 +632,45 @@
       if (state.magnetTime > 0 && item.type === "coin") {
         const dx = pCenterX - (item.x + item.width * 0.5);
         const dy = pCenterY - (item.y + item.height * 0.5);
-        const distSq = dx * dx + dy * dy;
-        if (distSq < 180 * 180) {
-          const pull = 220 / Math.max(80, Math.sqrt(distSq));
-          item.x += dx * 0.02 * pull;
-          item.y += dy * 0.02 * pull;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const magnetRadius = 220;
+
+        if (dist < magnetRadius) {
+          const nx = dx / Math.max(1, dist);
+          const ny = dy / Math.max(1, dist);
+          const strength = clamp((magnetRadius - dist) / magnetRadius, 0.12, 1);
+          const pullSpeed = 420 * strength;
+          item.x += nx * pullSpeed * worldDt;
+          item.y += ny * pullSpeed * worldDt;
+
+          // Prevent "floating behind player" by auto-collecting near-center coins.
+          if (dist < 30) {
+            state.coins += item.value;
+            state.score += 5;
+            emitParticles(item.x + item.width * 0.5, item.y + item.height * 0.5, "#ffd166", 4);
+            audio.beep(900, 0.03, "triangle", 0.02);
+            state.collectibles.splice(i, 1);
+            continue;
+          }
         }
       }
+
+      item.x = clamp(item.x, 2, WORLD.width - item.width - 2);
 
       if (item.y > WORLD.height + 40) {
         state.collectibles.splice(i, 1);
         continue;
       }
 
-      if (aabb(state.player, item)) {
+      const pickupPadding = item.type === "coin" ? 7 : 2;
+      const pickupBox = {
+        x: state.player.x - pickupPadding,
+        y: state.player.y - pickupPadding,
+        width: state.player.width + pickupPadding * 2,
+        height: state.player.height + pickupPadding * 2
+      };
+
+      if (aabb(pickupBox, item)) {
         if (item.type === "coin") {
           state.coins += item.value;
           state.score += 5;
@@ -883,7 +908,10 @@
   }
 
   function spawnCoin(x, y, speed) {
-    state.collectibles.push({ type: "coin", x, y, width: 14, height: 14, speed, vx: 0, value: 1 });
+    const size = 14;
+    // Input x is spawn center; collectible stores top-left.
+    const left = clamp(x - size * 0.5, 6, WORLD.width - size - 6);
+    state.collectibles.push({ type: "coin", x: left, y, width: size, height: size, speed, vx: 0, value: 1 });
   }
 
   function spawnPowerup() {

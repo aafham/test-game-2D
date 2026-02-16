@@ -19,6 +19,7 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - `Space`: Pause / Resume
 - `F` atau butang `Dash`: Dash + Slow-motion ability (cooldown)
 - `Esc`: Keluar dari Settings ke Home
+- `Back Home`: tersedia di skrin `Game Over` (lepas kalah)
 - Start Screen:
   - `C`: Tukar skin
   - `R`: Reset high score
@@ -39,6 +40,7 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - Spawn anti-overlap (min gap time + min x gap)
 - Local high score (`localStorage`)
 - Pause betul-betul berhenti update physics/spawn
+- Restart/reset run state tidak menjejaskan high score
 
 ## UI/UX Improvements
 - HUD metric cards lebih jelas (label kecil + nilai besar).
@@ -65,11 +67,14 @@ Audio WebAudio adalah optional. Jika browser block audio/autoplay, game masih be
 - Touch-zone visual feedback pada mobile ketika tap kiri/kanan.
 - Start Screen kini lebih compact:
   - CTA Start lebih dominan
+  - panel `Settings` khusus untuk accessibility + audio
   - panel `Daily Challenge` dan `Leaderboard` boleh collapse/expand
   - leaderboard default Top 3 dengan toggle `View All`
 - Daily challenge status diperjelas:
   - `Completed Today` bila dah claim
   - countdown reset harian (`Resets in Xh Ym`)
+- `New High Score` badge dipaparkan di `Game Over` jika pecah rekod
+- Haptic feedback (jika browser/device support) untuk event penting
 - Settings panel tambahan:
   - Reduced Motion
   - High Contrast

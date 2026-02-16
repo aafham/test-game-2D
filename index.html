@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="DODGE RUN - HTML5 Canvas endless runner" />
+  <meta name="description" content="DODGE RUN - polished HTML5 Canvas endless runner" />
   <title>DODGE RUN</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -11,15 +11,21 @@
   <main class="app">
     <section class="game-shell">
       <header class="hud" id="hud" aria-live="polite">
-        <div class="hud-left">
+        <div class="hud-grid">
           <p>Score: <span id="scoreValue">0</span></p>
           <p>High: <span id="highScoreValue">0</span></p>
-        </div>
-        <div class="hud-right">
           <p>Level: <span id="levelValue">1</span></p>
           <p>Speed: <span id="speedValue">1.00x</span></p>
+          <p>Combo: <span id="comboValue">x1</span></p>
+          <p>Shield: <span id="shieldValue">0</span></p>
+          <p>Coins: <span id="coinValue">0</span></p>
+          <p>Boss: <span id="bossValue">-</span></p>
         </div>
-        <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause game">||</button>
+        <div class="hud-actions">
+          <button id="abilityBtn" class="icon-btn" type="button" aria-label="Use ability">AB</button>
+          <span id="abilityValue" class="ability-state">Ready</span>
+          <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause game">||</button>
+        </div>
       </header>
 
       <div class="canvas-wrap" id="canvasWrap">
@@ -27,9 +33,21 @@
 
         <section class="overlay active" id="startScreen" role="dialog" aria-modal="true">
           <h1>DODGE RUN</h1>
-          <p class="subtitle">Arrow/A-D to move | Tap left/right on mobile</p>
-          <button id="startBtn" class="primary-btn" type="button">Start</button>
-          <p class="hint">Press <strong>R</strong> to reset High Score</p>
+          <p class="subtitle">Arrow/A-D to move | Space pause | F/AB dash+slowmo | Tap left/right on mobile</p>
+          <div class="button-row">
+            <button id="startBtn" class="primary-btn" type="button">Start</button>
+            <button id="skinBtn" class="ghost-btn" type="button">Skin: Neo Mint</button>
+          </div>
+          <div class="panel">
+            <p class="panel-title">Daily Challenge</p>
+            <p id="challengeText">-</p>
+            <p id="challengeStatus" class="hint">-</p>
+          </div>
+          <div class="panel">
+            <p class="panel-title">Leaderboard</p>
+            <ol id="leaderboardList" class="leaderboard"></ol>
+          </div>
+          <p class="hint">Press <strong>R</strong> to reset High Score | <strong>L</strong> reset local leaderboard</p>
         </section>
 
         <section class="overlay" id="pauseScreen" role="dialog" aria-modal="true">
@@ -42,7 +60,12 @@
           <h2>Game Over</h2>
           <p>Score: <span id="finalScore">0</span></p>
           <p>High Score: <span id="finalHighScore">0</span></p>
-          <button id="restartBtn" class="primary-btn" type="button">Restart</button>
+          <p>Coins Collected: <span id="finalCoins">0</span></p>
+          <p id="rewardInfo" class="hint"></p>
+          <div class="button-row">
+            <button id="restartBtn" class="primary-btn" type="button">Restart</button>
+            <button id="submitBtn" class="ghost-btn" type="button">Submit Score</button>
+          </div>
         </section>
       </div>
     </section>
@@ -51,3 +74,5 @@
   <script src="main.js"></script>
 </body>
 </html>
+
+
